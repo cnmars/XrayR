@@ -274,18 +274,36 @@ func (c *APIClient) ReportNodeStatus(nodeStatus *api.NodeStatus) (err error) {
 }
 
 func (c *APIClient) ReportNodeOnlineUsers(onlineUser *[]api.OnlineUser) (err error) {
-	path := "/v1/server/online"
-	users := make([]OnlineUser, 0)
-	for _, u := range *onlineUser {
-		users = append(users, OnlineUser{
-			UID: int64(u.UID),
-			IP:  u.IP,
-		})
-	}
-	if _, err = c.client.R().SetBody(users).ForceContentType("application/json").Post(path); err != nil {
-		return fmt.Errorf("request %s failed: %v", c.assembleURL(path), err.Error())
-	}
-	return nil
+    path := "/v1/server/online"
+    users := make([]OnlineUser, 0)
+    for _, u := range *onlineUser {
+        users = append(users, OnlineUser{
+            UID: int64(u.UID),
+            IP:  u.IP,
+        })
+    }
+    resp, err := c.client.R().
+        SetBody(map[string][]OnlineUser{"users": users}).
+        ForceContentType("application/json").
+        Post(path)
+    if err != nil {
+        return fmt.Errorf("request %s failed: %v", c.assembleURL(path), err.Error())
+    }
+    if resp.StatusCode() != 200 {
+        return fmt.Errorf("request %s failed with status %d: %s", c.assembleURL(path), resp.StatusCode(), resp.String())
+    }
+    type Response struct {
+        Code int    `json:"code"`
+        Msg  string `json:"msg"`
+    }
+    var res Response
+    if err := json.Unmarshal(resp.Body(), &res); err != nil {
+        return fmt.Errorf("failed to parse response: %v", err)
+    }
+    if res.Code != 200 {
+        return fmt.Errorf("server returned error: code=%d, msg=%s", res.Code, res.Msg)
+    }
+    return nil
 }
 
 func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) (err error) {
